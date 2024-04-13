@@ -11,7 +11,7 @@ class DBConnectionHandler:
         self.__client = None
         self.__db_connection = None
 
-    def coonect_to_db(self):
+    def connect_to_db(self):
         self.__client = MongoClient(self.__connection_string)
         self.__db_connection = self.__client[self.__database_name]
 
