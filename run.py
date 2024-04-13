@@ -2,168 +2,206 @@ from bs4 import BeautifulSoup
 import requests
 import re
 import math
-
 from models.connection_options.connection import DBConnectionHandler
 from models.repository.estuda_repository import EstudaRepository
 
-db_handle = DBConnectionHandler()
-db_handle.coonect_to_db()
-db_connection = db_handle.get_db_connection()
-estuda_repository = EstudaRepository(db_connection)
+def connect_to_database():
+    db_handle = DBConnectionHandler()
+    db_handle.connect_to_db()
+    return db_handle.get_db_connection()
 
-base_url = 'https://app.estuda.com/'
+def get_soup(url):
+    response = requests.get(url)
+    return BeautifulSoup(response.text, 'lxml')
+
+def get_total_pages(soup):
+    pagination_select = soup.find('li', class_='paginacao_paginas') 
+    options = pagination_select.find_all('option')
+    return int(options[-1].text)
+
+def get_exam_elements(page_soup):
+    return page_soup.find_all('div', class_='col-md-4 col-sm-6 col-xs-12')
+
+def fetch_exam_details(exam):
+    # Extract exam details
+    exam_details = {
+        'name': '', 
+        'year': '', 
+        'exam_type': 'Multiple Choice',
+        'questions_number': 0
+    }
+    exam_data = exam.find('span', class_='btn-block').text.split()
+
+    exam_details['name'] = exam_data[0]
+    exam_details['year'] = exam_data[1]
+    exam_details['questions_number'] = int(exam.find('strong').find_next('strong').text)
+
+    # Get exam id
+    exam_relative_url = exam.find('a', class_='btn btn-success')['href']
+    exam_id = re.search(r'prova=(\d+)&q', exam_relative_url).group(1)
+
+    return exam_details, exam_id
+
+def fetch_questions_for_exam(base_url, exam_id, exam_total_questions):
+    questions_page = 6
+    exam_pages = math.ceil(exam_total_questions / questions_page)
+    questions = []
+
+    # Iterate through each exam page
+    for page_number in range(1, exam_pages + 1):
+        page_url = f'{base_url}questoes/?prova={exam_id}&inicio={page_number}'
+        page_soup = get_soup(page_url)
+        questions.extend(get_question_elements(page_soup))
+
+    return questions
+
+def get_question_elements(exam_page_soup):
+    return exam_page_soup.find_all('div', id=re.compile('^d_questao'))
+
+def extract_question_content(question):    
+    [question_id, question_difficulty] = extract_question_data(question)
+
+    question_statemennt = extract_question_statement(question)
+
+    question_alternatives = extract_question_alternatives(question)
+
+    question_content = {
+        'statement': question_statemennt,
+        'alternatives': question_alternatives,
+        'difficulty_level': question_difficulty
+    }
+
+    return question_content, question_id
+
+def extract_question_alternatives(question):
+    alternatives_elements = question.find_all('div', class_='d-flex flex-row')
+    alternatives = []
+
+    # Iterate through each alternative element
+    for index, alternative in enumerate(alternatives_elements, start=1):
+        alternative_data = {'position': '', 'text': '', 'images': []}
+        alternative_data['position'] = chr(64 + index)
+
+        # Extract the alternative's text if it's available
+        alternative_text_tag = alternative.find('p')
+        if alternative_text_tag:
+            alternative_data['text'] = alternative_text_tag.get_text(strip=True)
+
+        # Extract the alternative's image if it's available
+        alternative_image_tags = alternative.find_all('img')
+        if alternative_image_tags:
+            for img_tag in alternative_image_tags:
+                alternative_data['images'].append(img_tag['src'])
+
+        alternatives.append(alternative_data)
+
+    return alternatives
+
+
+def extract_question_data(question):
+    question_info = question.find('div', class_='panel-title-box').find('h3').text.split()
+
+    question_id = question_info[2]
+    question_difficulty = question_info[3]
+
+    return question_id, question_difficulty
+
+def extract_question_statement(question):
+    [question_prompt_text, question_query_text] = get_full_statement_text(question)
+
+    # Extract full statement info
+    question_prompt_statement = ''
+    question_prompt_source = ''
+    image_prompt_source = ''
+
+    if question_prompt_text:
+        for p_tag in question_prompt_text.find_all('p'):
+            # If there's a <small> tag, separate it as the statement_source
+            small_tag = p_tag.find('small')
+            if small_tag:
+                question_prompt_source = small_tag.get_text(strip=True)
+            else:
+                # If there's an <img> tag 
+                if p_tag.find('img'):
+                    image_prompt_source = question_prompt_text.find('img')['src']
+                question_prompt_statement += p_tag.get_text(strip=True) + ' '
+
+    question_prompt_statement = question_prompt_statement.strip()
+
+    # Repeat the process to the query question
+    question_query_statement = ''
+    question_query_source = ''
+    image_query_source = ''
+
+    for p_tag in question_query_text.find_all('p'):
+        # If there's a <small> tag, separate it as the prompt_source
+        small_tag = p_tag.find('small')
+        if small_tag:
+            question_query_source = small_tag.get_text(strip=True)
+        else:
+            # If there's an <img> tag
+            # Handle <img> tag if present
+            if p_tag.find('img'):
+                image_query_source = p_tag.find('img')['src']
+
+            question_query_statement += p_tag.get_text(strip=True) + ' '
+
+    question_query_statement = question_query_statement.strip()
+
+    question_statement = {
+        'prompt': {
+            'text': question_prompt_statement,
+            'source': question_prompt_source,
+            'image': image_prompt_source
+        },
+        'query': {
+            'text': question_query_statement,
+            'source': question_query_source,
+            'image': image_query_source
+        },
+    }
+
+    return question_statement
+
+def get_full_statement_text(question):
+    question_prompt_text = question.find('div', class_='pergunta pergunta_base')
+    question_query_text = question.find('div', class_='pergunta')
+
+    # Fix when exists pormpt and query text
+    if 'pergunta_base' in question_query_text.get('class', []):
+        question_query_text = question_query_text.find_next_sibling('div', class_='pergunta')
+
+    return question_prompt_text, question_query_text
     
-html_text = requests.get(base_url + 'questoes_provas').text
-soup = BeautifulSoup(html_text, 'lxml')
+def main():
+    # Connect do Database
+    db_connection = connect_to_database()
+    estuda_repository = EstudaRepository(db_connection)
 
-# Find the number of pages
-pagination_select = soup.find('li', class_='paginacao_paginas') 
-options = pagination_select.find_all('option')
-total_pages = int(options[-1].text)
-
-# Iterare through each page
-for actual_page in range(1, total_pages + 1):
-    page_html_text = requests.get(base_url + 'questoes_provas/?inicio=' + str(actual_page)).text
-    page_soup = BeautifulSoup(page_html_text, 'lxml')
-
-    # Find all exam elements
-    exams = page_soup.find_all('div', class_='col-md-4 col-sm-6 col-xs-12')
-
-    # Iterate through each exam
-    for exam in exams:
-        # Extract exam details
-        exam_data = exam.find('span', class_='btn-block').text.split()
-        exam_name = exam_data[0]
-        exam_year = exam_data[1]
-
-        # Extract the number of questions and page of each exam
-        exam_total_questions = int(exam.find('strong').find_next('strong').text)
-        exam_pages = math.ceil(exam_total_questions / 6)
+    base_url = 'https://app.estuda.com/'
+    soup = get_soup(base_url + 'questoes_provas')
+    total_pages = get_total_pages(soup)
+    
+    # Iterate through each page of the exams list
+    for actual_page in range(2, total_pages + 1):
+        page_soup = get_soup(f'{base_url}questoes_provas/?inicio={actual_page}')
+        exams = get_exam_elements(page_soup)
         
-        # Extract the exam id and create base url
-        exam_relative_url = exam.find('a', class_='btn btn-success')['href']
-        exam_number_id = re.search(r'prova=(\d+)&q', exam_relative_url).group(1)
-        exam_base_url = base_url + 'questoes/?resolver=&prova=' + exam_number_id + '&inicio='
+        # Iterate through each exam to fetch details and questions
+        for exam in exams:
+            [exam_details, exam_id] = fetch_exam_details(exam)
 
-        # Iterate through each exam page
-        for actual_exam_page in range(1, exam_pages + 1):
-            exam_page_url = base_url + 'questoes/?resolver=&prova=' + exam_number_id + '&inicio=' + str(actual_exam_page)
-            exam_page_html_text = requests.get(exam_page_url).text
-            exam_page_soup = BeautifulSoup(exam_page_html_text, 'lxml')
-
-            # Find all exam questions
-            questions = exam_page_soup.find_all('div', id=re.compile('^d_questao'))       
-        
-            # Iterate through each question element
-            for question in questions:
-        
-                # Extract the question name and diffiiculty
-                question_info = question.find('div', class_='panel-title-box').find('h3').text.split()
-                question_name = question_info[0] + ' ' + question_info[1]
-                question_id = question_info[2]
-                question_difficulty = question_info[3]
-
-                # Extract full statement info
-                question_prompt_text = question.find('div', class_='pergunta pergunta_base')
-                question_query_text = question.find('div', class_='pergunta')
-
-                # Fix when exists pormpt and query text
-                if 'pergunta_base' in question_query_text.get('class', []):
-                    question_query_text = question_query_text.find_next_sibling('div', class_='pergunta')
-
-                # Initialize an empty string to hold the concatenated statement text
-                question_prompt_statement = ""
-                prompt_source = ""
-
-                question_query_statement = ""
-                query_source = ""
-
-                # Find all <p> tags in prompt question and process their content
-                if question_prompt_text:
-                    for p_tag in question_prompt_text.find_all('p'):
-                        # If there's a <small> tag, separate it as the prompt_source
-                        small_tag = p_tag.find('small')
-                        if small_tag:
-                            prompt_source = small_tag.get_text(strip=True)
-                        else:
-                            # If there's an <img> tag or the paragraph is empty, skip it
-                            if p_tag.find('img') or not p_tag.get_text(strip=True):
-                                continue
-                            question_prompt_statement += p_tag.get_text(strip=True) + ' '
-
-                    question_prompt_statement = question_prompt_statement.strip()
-
-                # Repeat the process to the query question
-                for p_tag in question_query_text.find_all('p'):
-                    # If there's a <small> tag, separate it as the prompt_source
-                    small_tag = p_tag.find('small')
-                    if small_tag:
-                        query_source = small_tag.get_text(strip=True)
-                    else:
-                        # If there's an <img> tag or the paragraph is empty, skip it
-                        if p_tag.find('img') or not p_tag.get_text(strip=True):
-                            continue
-                        question_query_statement += p_tag.get_text(strip=True) + ' '
-
-                question_query_statement = question_query_statement.strip()
-
-                # Extract the image source
-                # Assuming there's only one <img> at the prompt and query
-                if question_prompt_text:
-                    image_prompt_tag = question_prompt_text.find('img')
-                    image_prompt_source = image_prompt_tag['src'] if image_prompt_tag else ''
-                else:
-                    image_prompt_source = ''  # Ensure default is set if 'question_query_text' is None
-                
-                image_query_tag = question_query_text.find('img')
-                image_query_source = image_query_tag['src'] if image_query_tag else ''
-
-                # Extract the all alternatives info
-                alternatives = question.find_all('div', class_='d-flex flex-row')
-                all_alternatives = []
-
-                # Iterate through each alternative element
-                for index, alternative in enumerate(alternatives, start=1):
-                    alternative_data = {'position': '', 'text': '', 'images': []}
-                    alternative_data['position'] = chr(64 + index)
-
-                    # Extract the alternative's text if it's available
-                    alternative_text_tag = alternative.find('p')
-                    if alternative_text_tag:
-                        alternative_data['text'] = alternative_text_tag.get_text(strip=True)
-
-                    # Extract the alternative's image if it's available
-                    alternative_image_tags = alternative.find_all('img')
-                    if alternative_image_tags:
-                        for img_tag in alternative_image_tags:
-                            alternative_data['images'].append(img_tag['src'])
-
-                    all_alternatives.append(alternative_data)
+            exam_total_questions = exam_details['questions_number']
+            questions = fetch_questions_for_exam(base_url, exam_id, exam_total_questions)
             
+            for question in questions:
+                [question_content, question_id] = extract_question_content(question)
                 question_data = {
-                    "id": question_id,
-                    "exam_details": {
-                        "name": exam_name,
-                        "year": exam_year,
-                        "exam_type": "Multiple Choice",
-                        "questions_number": exam_total_questions
-                    },
-                    "question_content": {
-                        "statement": {
-                            "prompt": {
-                                "text": question_prompt_statement,
-                                "image": image_prompt_source,
-                                "source": prompt_source
-                            },
-                            "query": {
-                                "text": question_query_statement,
-                                "image": image_query_source,
-                                "source": query_source
-                            },
-                        },
-                        "alternatives": all_alternatives,
-                        "difficulty_level": question_difficulty
-                    }
+                    'id': question_id,
+                    'exam_details': exam_details,
+                    'question_content': question_content
                 }
-
                 estuda_repository.insert_document(question_data)
+
+if __name__ == '__main__':
+    main()
