@@ -183,7 +183,7 @@ def main():
     total_pages = get_total_pages(soup)
     
     # Iterate through each page of the exams list
-    for actual_page in range(2, total_pages + 1):
+    for actual_page in range(1, total_pages + 1):
         page_soup = get_soup(f'{base_url}questoes_provas/?inicio={actual_page}')
         exams = get_exam_elements(page_soup)
         
