@@ -4,6 +4,7 @@ import re
 import math
 from models.connection_options.connection import DBConnectionHandler
 from models.repository.estuda_repository import EstudaRepository
+from selenium_actions import SeleniumAutomation
 
 def connect_to_database():
     db_handle = DBConnectionHandler()
@@ -42,15 +43,20 @@ def fetch_exam_details(exam):
 
     return exam_details, exam_id
 
-def fetch_questions_for_exam(base_url, exam_id, exam_total_questions):
-    questions_page = 6
-    exam_pages = math.ceil(exam_total_questions / questions_page)
+def fetch_questions_for_exam(base_url, exam_id, exam_total_questions, bot):
+    questions_by_page = 6
+    exam_pages = math.ceil(exam_total_questions / questions_by_page)
     questions = []
 
     # Iterate through each exam page
     for page_number in range(1, exam_pages + 1):
+        # Use bot to answer the questions and extract the correct_answer
         page_url = f'{base_url}questoes/?prova={exam_id}&inicio={page_number}'
-        page_soup = get_soup(page_url)
+        bot.driver.get(page_url)
+        page_content = bot.get_answers()
+        
+        page_soup = BeautifulSoup(page_content, 'lxml')
+        print(page_soup.prettify().encode('cp1252', 'ignore').decode('cp1252'))
         questions.extend(get_question_elements(page_soup))
 
     return questions
@@ -181,6 +187,10 @@ def main():
     base_url = 'https://app.estuda.com/'
     soup = get_soup(base_url + 'questoes_provas')
     total_pages = get_total_pages(soup)
+
+    # Initialize Selenium Automation
+    bot = SeleniumAutomation()
+    bot.login()
     
     # Iterate through each page of the exams list
     for actual_page in range(1, total_pages + 1):
@@ -192,7 +202,7 @@ def main():
             [exam_details, exam_id] = fetch_exam_details(exam)
 
             exam_total_questions = exam_details['questions_number']
-            questions = fetch_questions_for_exam(base_url, exam_id, exam_total_questions)
+            questions = fetch_questions_for_exam(base_url, exam_id, exam_total_questions, bot)
             
             for question in questions:
                 [question_content, question_id] = extract_question_content(question)

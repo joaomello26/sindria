@@ -4,51 +4,51 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+class SeleniumAutomation:
+    def __init__(self, driver_path="C:/SeleniumDrivers", headless=False):
+        self.driver = self.configure_driver(driver_path, headless)
 
-def configure_driver():
-    os.environ['PATH'] += "C:/SeleniumDrivers"
-    options = Options()
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    options.add_argument("--disable-blink-features=AutomationControlled")
+    def __exit__(self):
+        self.quit()
 
-    driver = webdriver.Chrome(options=options)
-    driver.maximize_window()
-    return driver
+    def configure_driver(self, driver_path, headless):
+        os.environ['PATH'] += driver_path
+        options = Options()
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        if headless:
+            options.add_argument("--headless")
+        driver = webdriver.Chrome(options=options)
+        driver.maximize_window()
+        return driver
 
-def login(driver, url, email, password):
-    driver.get(url)
-    WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.NAME, 'siu_email'))
-    )
-    driver.find_element(By.NAME, 'siu_email').send_keys(email)
-    driver.find_element(By.NAME, 'siu_senha').send_keys(password)
-    driver.find_element(By.CSS_SELECTOR, '.btn.btn-info.btn-lg.btn-block.text-uppercase').click()
+    def login(self):
+        login_url = 'https://app.estuda.com/usuarios_login'
+        email = 'alexdubugras@gmail.com'  
+        password = 'sindria123'
 
-def click_elements(driver, elements_xpath):
-    elements = driver.find_elements(By.XPATH, elements_xpath)
-    for element in elements:
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
-        element.click()
+        self.driver.get(login_url)
 
-def main():
-    driver = configure_driver()
-    login_url = 'https://app.estuda.com/usuarios_login'
-    email = 'alexdubugras@gmail.com'  
-    password = 'sindria123'  
+        WebDriverWait(self.driver, 10).until(
+            EC.element_to_be_clickable((By.NAME, 'siu_email'))
+        )
+        self.driver.find_element(By.NAME, 'siu_email').send_keys(email)
+        self.driver.find_element(By.NAME, 'siu_senha').send_keys(password)
+        self.driver.find_element(By.CSS_SELECTOR, '.btn.btn-info.btn-lg.btn-block.text-uppercase').click()
 
-    login(driver, login_url, email, password)
+    def click_elements(self, elements_xpath):
+        WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH, elements_xpath)))
+        elements = self.driver.find_elements(By.XPATH, elements_xpath)
+        for element in elements:
+            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+            element.click()
 
-    driver.get('https://app.estuda.com/questoes/?prova=9123&q=&cat=')
+    def get_answers(self):
+        alternative_xpath = '//div[@class=\'respostas form form-group\']/label'
+        answer_button_xpath = '//div[@class=\'respostas form form-group\']/button'
 
-    alternative_xpath = '//div[@class=\'respostas form form-group\']/label'
-    answer_button_xpath = '//div[@class=\'respostas form form-group\']/button'
+        self.click_elements(alternative_xpath)
+        self.click_elements(answer_button_xpath)
 
-    click_elements(driver, alternative_xpath)
-    click_elements(driver, answer_button_xpath)
-    
-    input("Press Enter to quit the session...")
-    driver.quit()
-
-if __name__ == "__main__":
-    main()
+        return self.driver.page_source
