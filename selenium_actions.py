@@ -1,4 +1,5 @@
 import os
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -45,10 +46,12 @@ class SeleniumAutomation:
             element.click()
 
     def get_answers(self):
-        alternative_xpath = '//div[@class=\'respostas form form-group\']/label'
+        alternative_xpath = '//div[@class=\'respostas form form-group\']/label[1]'
         answer_button_xpath = '//div[@class=\'respostas form form-group\']/button'
 
         self.click_elements(alternative_xpath)
         self.click_elements(answer_button_xpath)
+
+        time.sleep(5) # Wait for the page load
 
         return self.driver.page_source

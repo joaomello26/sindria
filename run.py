@@ -49,14 +49,13 @@ def fetch_questions_for_exam(base_url, exam_id, exam_total_questions, bot):
     questions = []
 
     # Iterate through each exam page
-    for page_number in range(1, exam_pages + 1):
+    for page_number in range(1, exam_pages+1):
         # Use bot to answer the questions and extract the correct_answer
         page_url = f'{base_url}questoes/?prova={exam_id}&inicio={page_number}'
         bot.driver.get(page_url)
         page_content = bot.get_answers()
         
         page_soup = BeautifulSoup(page_content, 'lxml')
-        print(page_soup.prettify().encode('cp1252', 'ignore').decode('cp1252'))
         questions.extend(get_question_elements(page_soup))
 
     return questions
@@ -69,22 +68,27 @@ def extract_question_content(question):
 
     question_statemennt = extract_question_statement(question)
 
-    question_alternatives = extract_question_alternatives(question)
+    [question_alternatives, correct_aswer] = extract_question_alternatives(question)
 
     question_content = {
         'statement': question_statemennt,
         'alternatives': question_alternatives,
+        'correct_answer': correct_aswer,
         'difficulty_level': question_difficulty
     }
 
     return question_content, question_id
 
 def extract_question_alternatives(question):
-    alternatives_elements = question.find_all('div', class_='d-flex flex-row')
+    label_class = 'check btn-block d-flex justify-content-between'
+
+    alternative_elements = question.find_all('label', class_=re.compile(f'^{label_class}'))
     alternatives = []
 
+    correct_answer_element = question.find('label', class_= re.compile(r"\bcerta\b"))
+
     # Iterate through each alternative element
-    for index, alternative in enumerate(alternatives_elements, start=1):
+    for index, alternative in enumerate(alternative_elements, start=1):
         alternative_data = {'position': '', 'text': '', 'images': []}
         alternative_data['position'] = chr(64 + index)
 
@@ -99,10 +103,13 @@ def extract_question_alternatives(question):
             for img_tag in alternative_image_tags:
                 alternative_data['images'].append(img_tag['src'])
 
+        # Extract the correct answer if it's case
+        if alternative == correct_answer_element:
+            correct_answer = alternative_data['position']
+
         alternatives.append(alternative_data)
 
-    return alternatives
-
+    return alternatives, correct_answer
 
 def extract_question_data(question):
     question_info = question.find('div', class_='panel-title-box').find('h3').text.split()
