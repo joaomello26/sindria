@@ -20,22 +20,31 @@ def get_total_pages(soup):
     options = pagination_select.find_all('option')
     return int(options[-1].text)
 
+def fetch_all_exams(base_url, total_pages):
+    exams = []
+
+    for actual_page in range(1, total_pages + 1):
+        page_soup = get_soup(f'{base_url}questoes_provas/?inicio={actual_page}')
+        exams.extend(get_exam_elements(page_soup))
+
+    return exams
+
 def get_exam_elements(page_soup):
     return page_soup.find_all('div', class_='col-md-4 col-sm-6 col-xs-12')
 
-def fetch_exam_details(exam):
-    # Extract exam details
-    exam_details = {
-        'name': '', 
-        'year': '', 
-        'exam_type': 'Multiple Choice',
-        'questions_number': 0
-    }
-    exam_data = exam.find('span', class_='btn-block').text.split()
+def get_exam_details(exam):
+    exam_data = exam.find('span', class_='btn-block').get_text(strip=True)
+    
+    data_pattern = r'^([a-zA-Z ]+) (\d{4})(?:/(\d+))?(?:\s+.*)?$'
+    match = re.search(data_pattern, exam_data.strip())
 
-    exam_details['name'] = exam_data[0]
-    exam_details['year'] = exam_data[1]
-    exam_details['questions_number'] = int(exam.find('strong').find_next('strong').text)
+    exam_details = {
+        'name': match.group(1).strip(), 
+        'year': int(match.group(2)),
+        'number': int(match.group(3)) if match.group(3) else '',
+        'exam_type': 'Multiple Choice',
+        'questions_number' : None
+    }
 
     # Get exam id
     exam_relative_url = exam.find('a', class_='btn btn-success')['href']
@@ -218,27 +227,24 @@ def main():
     # Initialize Selenium Automation
     bot = SeleniumAutomation()
     bot.login()
-    
-    # Iterate through each page of the exams list
-    for actual_page in range(1, total_pages + 1):
-        page_soup = get_soup(f'{base_url}questoes_provas/?inicio={actual_page}')
-        exams = get_exam_elements(page_soup)
-        
-        # Iterate through each exam to fetch details and questions
-        for exam in exams:
-            [exam_details, exam_id] = fetch_exam_details(exam)
 
-            exam_total_questions = exam_details['questions_number']
-            questions = fetch_questions_for_exam(base_url, exam_id, exam_total_questions, bot)
-            
-            for question in questions:
-                [question_content, question_id] = extract_question_content(question)
-                question_data = {
-                    'id': question_id,
-                    'exam_details': exam_details,
-                    'question_content': question_content
-                }
-                estuda_repository.insert_document(question_data)
+    exams = fetch_all_exams(base_url, total_pages)
+        
+    # Iterate through each exam to fetch details and questions
+    for exam in exams:
+        [exam_details, exam_id] = get_exam_details(exam)
+
+        exam_total_questions = exam_details['questions_number']
+        questions = fetch_questions_for_exam(base_url, exam_id, exam_total_questions, bot)
+        
+        for question in questions:
+            [question_content, question_id] = extract_question_content(question)
+            question_data = {
+                'id': question_id,
+                'exam_details': exam_details,
+                'question_content': question_content
+            }
+            estuda_repository.insert_document(question_data)
 
 if __name__ == '__main__':
     main()
