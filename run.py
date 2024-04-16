@@ -50,10 +50,13 @@ def fetch_questions_for_exam(base_url, exam_id, exam_total_questions, bot):
 
     # Iterate through each exam page
     for page_number in range(1, exam_pages+1):
-        # Use bot to answer the questions and extract the correct_answer
+        # Use bot to answer the questions to extract the correct answer and questions topics
         page_url = f'{base_url}questoes/?prova={exam_id}&inicio={page_number}'
         bot.driver.get(page_url)
-        page_content = bot.get_answers()
+
+        bot.get_answers()
+        bot.get_topics()
+        page_content = bot.driver.page_source
         
         page_soup = BeautifulSoup(page_content, 'lxml')
         questions.extend(get_question_elements(page_soup))
@@ -64,20 +67,37 @@ def get_question_elements(exam_page_soup):
     return exam_page_soup.find_all('div', id=re.compile('^d_questao'))
 
 def extract_question_content(question):    
-    [question_id, question_difficulty] = extract_question_data(question)
-
     question_statemennt = extract_question_statement(question)
-
+    question_topics = extract_question_topics(question)
     [question_alternatives, correct_aswer] = extract_question_alternatives(question)
+    [question_id, question_difficulty] = extract_question_data(question)
 
     question_content = {
         'statement': question_statemennt,
+        'topics': question_topics,
         'alternatives': question_alternatives,
         'correct_answer': correct_aswer,
         'difficulty_level': question_difficulty
     }
 
     return question_content, question_id
+
+def extract_question_topics(question):
+    tags_elements = question.find('ul', class_='list-tags')
+
+    subject = tags_elements.find('li', class_='active').get_text(strip=True)
+
+    topic_elements = tags_elements.find_all('a', target='_top')
+    topics = []
+    for topic in topic_elements:
+        topics.append(topic.get_text(strip=True))
+
+    question_topics = {
+        'subject': subject,
+        'path': {'tree': topics}
+    }
+
+    return question_topics
 
 def extract_question_alternatives(question):
     label_class = 'check btn-block d-flex justify-content-between'
