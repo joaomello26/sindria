@@ -149,6 +149,7 @@ def get_question_alternatives(question):
     alternative_elements = question.find_all('label', class_=re.compile(f'^{label_class}'))
     alternatives = []
 
+    correct_answer = ''
     correct_answer_element = question.find('label', class_= re.compile(r"\bcerta\b"))
 
     # Iterate through each alternative element
@@ -185,7 +186,9 @@ def get_question_statement(question):
     statement_div_class = 'panel-body panel-body-perguntas highlighter-context'
     statement_div = question.find('div', class_=statement_div_class)
     
-    statement_elements = statement_div.find_all('p')
+    statement_elements = ''
+    if not statement_div: # DEBUG 
+        statement_elements = statement_div.find_all('p')
 
     # Transform html into dict
     question_statement = []
@@ -214,7 +217,7 @@ def element_to_dict(element):
             child_dict = {'tag': child.name}
             # Check if the child is an image, since it doesn't contain text
             if child.name == 'img':
-                child_dict['atributes'] = child.atrrs
+                child_dict['atributes'] = child.attrs
             else:
                 child_dict['text'] = child.get_text()
 
@@ -259,6 +262,7 @@ def main():
             estuda_repository.insert_document(question_data)
 
         logging.info(f'Extract all question from {exam_details['name']} {exam_details['year']} {exam_details['number']}successfull')
+        bot.clean_account()
 
 if __name__ == '__main__':
     main()

@@ -63,6 +63,32 @@ class SeleniumAutomation:
         except Exception as e:
             logging.error(f'An unexpected error occurred: {e}')
 
+    def clean_account(self):
+        clean_account_url = 'https://app.estuda.com/usuarios_limpar'
+
+        self.navigate_to_page(clean_account_url)
+
+        try:
+            # Ensure the check button is clickable
+            check_box = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.NAME, 'limpar'))
+            )
+            check_box.click()
+
+            # Click in the confirmation clean button
+            clean_button_xpath = '//div[@class=\'panel-footer\']/button'
+            clean_button = self.driver.find_element(By.XPATH, clean_button_xpath)
+            clean_button.click()
+
+            logging.info('Clean account successful')
+        except TimeoutException:
+            logging.warning('Element not clickable within timeout period.')
+        except NoSuchElementException:
+            logging.error('Element not found on the page.')
+        except Exception as e:
+            logging.error(f'An unexpected error occurred: {e}')
+
+
     def click_elements(self, elements_xpath):
         try:
             # Ensure the element is clickable
@@ -89,4 +115,4 @@ class SeleniumAutomation:
         self.click_elements(alternative_xpath)
         self.click_elements(answer_button_xpath)
 
-        time.sleep(3) # Wait for the page load
+        time.sleep(5) # Wait for the page load
