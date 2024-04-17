@@ -90,10 +90,3 @@ class SeleniumAutomation:
         self.click_elements(answer_button_xpath)
 
         time.sleep(3) # Wait for the page load
-    
-    def get_topics(self):
-        show_topics_xpath = '//ul[@class=\'list-tags\']/li[2]/a'
-
-        self.click_elements(show_topics_xpath)
-
-        time.sleep(3) # Wait for the page load
