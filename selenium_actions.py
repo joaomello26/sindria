@@ -63,6 +63,12 @@ class SeleniumAutomation:
         except Exception as e:
             logging.error(f'An unexpected error occurred: {e}')
 
+    def get_page_source(self, url):
+        self.navigate_to_page(url)
+        time.sleep(2) # Wait for the page load
+
+        return self.driver.page_source
+
     def clean_account(self):
         clean_account_url = 'https://app.estuda.com/usuarios_limpar'
 
@@ -87,32 +93,3 @@ class SeleniumAutomation:
             logging.error('Element not found on the page.')
         except Exception as e:
             logging.error(f'An unexpected error occurred: {e}')
-
-
-    def click_elements(self, elements_xpath):
-        try:
-            # Ensure the element is clickable
-            WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, elements_xpath))
-            )
-
-            elements = self.driver.find_elements(By.XPATH, elements_xpath)
-            for element in elements:
-                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
-                element.click()
-
-        except TimeoutException:
-            logging.warning('Element not clickable within timeout period.')
-        except NoSuchElementException:
-            logging.error('Element not found on the page.')
-        except Exception as e:
-            logging.error(f'An unexpected error occurred: {e}')
-
-    def get_answers(self):
-        alternative_xpath = '//div[@class=\'respostas form form-group\']/label[1]'
-        answer_button_xpath = '//div[@class=\'respostas form form-group\']/button'
-
-        self.click_elements(alternative_xpath)
-        self.click_elements(answer_button_xpath)
-
-        time.sleep(5) # Wait for the page load
