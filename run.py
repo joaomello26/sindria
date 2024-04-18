@@ -167,10 +167,9 @@ def main():
             }
             estuda_repository.insert_document(question_data)
 
-            if not question_content['statement'] or question_content['correct_answer'] == '':
-                logging.debug(question_id)
-
         logging.info(f'Extract all question from {exam_details['name']} {exam_details['year']} {exam_details['number']}successfull')
+
+        # Clear your account to avoid reaching the limit of questions per day 
         bot.clean_account()
 
 if __name__ == '__main__':
