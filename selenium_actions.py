@@ -29,7 +29,7 @@ class SeleniumAutomation:
     def navigate_to_page(self, url):
         try:
             self.driver.get(url)
-            logging.info(f'Successfully navigated to {url}')
+            # logging.info(f'Successfully navigated to {url}')
         except Exception as e:
             logging.error(f'Failed to navigate to {url} due to {e}')
 
@@ -65,7 +65,7 @@ class SeleniumAutomation:
 
     def get_page_source(self, url):
         self.navigate_to_page(url)
-        time.sleep(2) # Wait for the page load
+        time.sleep(3) # Wait for the page load
 
         return self.driver.page_source
 

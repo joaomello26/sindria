@@ -23,11 +23,11 @@ def get_soup(url):
         logging.error(f'Failed to get any content from {url}.')
         sys.exit(1)
 
-def fetch_all_exams(base_url, total_pages):
+def fetch_exams(base_url, start_page, end_page):
     # Fetch all the exams in the site database
     exams = []
 
-    for actual_page in range(1, total_pages+1):
+    for actual_page in range(start_page, end_page):
         page_soup = get_soup(f'{base_url}questoes_provas/?inicio={actual_page}')
 
         if not page_soup: # Check if soup is None and exit if true
