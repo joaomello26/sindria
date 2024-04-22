@@ -25,13 +25,21 @@ class SeleniumAutomation:
         driver = webdriver.Chrome(options=options)
         driver.maximize_window()
         return driver
-    
-    def navigate_to_page(self, url):
-        try:
-            self.driver.get(url)
-            # logging.info(f'Successfully navigated to {url}')
-        except Exception as e:
-            logging.error(f'Failed to navigate to {url} due to {e}')
+
+    def navigate_to_page(self, url, retries=3):
+        attempt = 0
+        while attempt < retries:
+            try:
+                self.driver.set_page_load_timeout(30) 
+                self.driver.get(url)
+                return  # Success, exit function
+            except TimeoutException:
+                logging.warning(f'Retrying to load {url}, attempt {attempt + 1}')
+                attempt += 1
+            except Exception as e:
+                logging.error(f'Failed to navigate to {url} due to {e}')
+                break  
+        logging.error(f'All retries failed for {url}')
 
     def login(self):
         login_url = 'https://app.estuda.com/usuarios_login'
