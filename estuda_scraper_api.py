@@ -23,11 +23,11 @@ class EstudaScraperAPI:
         logging.info('Starting fetch multithread')
 
         # Assigns a page to each thread
-        threads_count = 1 #self.total_pages
+        threads_count = self.total_pages
         threads = []
         
         for i in range(threads_count):
-            start_page = 10 + i
+            start_page = 1 + i
             end_page = start_page + 1
 
             thread = threading.Thread(target=self.execute_fetching_batch, args=(start_page, end_page))
@@ -68,14 +68,14 @@ class EstudaScraperAPI:
     def get_exam_details(self, exam):
         # Extract exam details based on the name pattern
         exam_data = exam.find('span', class_='btn-block').get_text(strip=True)
-        
-        data_pattern = r'^([\w]+) (\d{4})(?:/(\d+))?(?:\s+.*)?$'
+    
+        data_pattern = r'(.+?)\s+(\d{4})(?:/(\d+))?(\s*.*\S)?'
         match = re.search(data_pattern, exam_data.strip())
-
-        questions_number = int(exam.find('strong').find_next('strong').text)
+    
+        questions_number = int(exam.find('strong').find_next('strong').text) 
 
         exam_details = {
-            'name': match.group(1).strip(), 
+            'name': ' '.join(match.group(1).strip().split()) + (' ' + ' '.join(match.group(4).strip().split()) if match.group(4) else ''), 
             'year': int(match.group(2)),
             'number': int(match.group(3)) if match.group(3) else '',
             'exam_type': 'Multiple Choice',
@@ -171,6 +171,9 @@ class EstudaScraperAPI:
         question_info = question.find('div', class_='panel-title-box').find('h3').text.split()
 
         question_id = question_info[2]
-        question_difficulty = question_info[3]
+        
+        question_difficulty = ""
+        if len(question_info) == 4: # Not every question has difficulty information
+            question_difficulty = question_info[3]
 
         return question_id, question_difficulty
